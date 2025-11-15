@@ -1,9 +1,4 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Morpion IA</title>
+<!DOCTYPE html> <html lang="fr"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Morpion IA</title>
 
     <style>
         body {
@@ -17,9 +12,9 @@
             background-color: #121212;
             color: #E0E0E0;
         }
-
+    
         h1 { color: white; font-weight: 300; }
-
+    
         #starter-select {
             margin-bottom: 15px;
             padding: 10px;
@@ -29,7 +24,7 @@
             border-radius: 5px;
             font-size: 1rem;
         }
-
+    
         #game-board {
             display: grid;
             grid-template-columns: repeat(3, 110px);
@@ -37,7 +32,7 @@
             gap: 10px;
             margin: 20px;
         }
-
+    
         .cell {
             width: 110px;
             height: 110px;
@@ -53,18 +48,24 @@
             transition: background-color 0.2s ease-in-out;
             user-select: none;
         }
-
+    
         .cell:hover { background-color: #2A2A2A; }
         .cell.x { color: #E74C3C; }
         .cell.o { color: #3498DB; }
-
+    
         #status-message {
             height: 30px;
             font-size: 1.5rem;
             color: #AAA;
             margin: 10px 0;
         }
-
+    
+        #scoreboard {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            color: #EEE;
+        }
+    
         #reset-button {
             padding: 12px 25px;
             font-size: 1rem;
@@ -75,38 +76,57 @@
             cursor: pointer;
             transition: background-color 0.2s;
         }
-
+    
         #reset-button:hover { background-color: #2980B9; }
     </style>
-</head>
-<body>
-
-    <h1>Jeu de Morpion</h1>
-
-    <!-- NOUVEAU : choisir qui commence -->
+    </head> <body>
+    
+    <h1>Morpion Toi Contre mon IA (DYRAL)</h1>
+    
     <select id="starter-select">
         <option value="player">Tu commences (X)</option>
         <option value="ai">L'IA commence (O)</option>
     </select>
-
+    
+    <div id="scoreboard">
+        <span id="human-score">Ton score: 0</span> |
+        <span id="ai-score">IA: 0</span> |
+        <span id="draw-score">Matchs nuls: 0</span>
+    </div>
+    
     <div id="game-board"></div>
     <h2 id="status-message"></h2>
     <button id="reset-button">Rejouer</button>
-
+    
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const boardElement = document.getElementById('game-board');
             const statusElement = document.getElementById('status-message');
             const resetButton = document.getElementById('reset-button');
             const starterSelect = document.getElementById('starter-select');
-
+    
+            const humanScoreElement = document.getElementById('human-score');
+            const aiScoreElement = document.getElementById('ai-score');
+            const drawScoreElement = document.getElementById('draw-score');
+    
             const API_URL = 'http://127.0.0.1:5000/api/play';
-
+    
             const PLAYER_X = 'X';
             const PLAYER_O = 'O';
             let boardState;
             let gameActive;
-
+    
+            // Compteurs de score
+            let humanScore = 0;
+            let aiScore = 0;
+            let drawScore = 0;
+    
+            function updateScoreboard() {
+                humanScoreElement.textContent = `Ton score: ${humanScore}`;
+                aiScoreElement.textContent = `Mon IA: ${aiScore}`;
+                drawScoreElement.textContent = `Matchs nuls: ${drawScore}`;
+            }
+    
             function initializeGame() {
                 boardState = [
                     [' ', ' ', ' '],
@@ -115,12 +135,12 @@
                 ];
                 gameActive = true;
                 boardElement.innerHTML = '';
-
+    
                 statusElement.textContent =
                     starterSelect.value === "player"
                     ? "C'est votre tour (X)"
                     : "L'IA commence...";
-
+    
                 for (let i = 0; i < 3; i++) {
                     for (let j = 0; j < 3; j++) {
                         const cell = document.createElement('div');
@@ -131,14 +151,13 @@
                         boardElement.appendChild(cell);
                     }
                 }
-
-                // Si l'IA commence → jouer immédiatement
+    
                 if (starterSelect.value === "ai") {
                     gameActive = false;
                     setTimeout(aiTurn, 500);
                 }
             }
-
+    
             async function aiTurn() {
                 try {
                     const response = await fetch(API_URL, {
@@ -146,51 +165,51 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ board: boardState })
                     });
-
+    
                     const data = await response.json();
-
+    
                     if (data.move) {
                         const [aiRow, aiCol] = data.move;
                         updateBoard(aiRow, aiCol, PLAYER_O);
                     }
-
+    
                     if (data.status) {
                         endGame(data.status);
                     } else {
                         statusElement.textContent = "C'est votre tour (X)";
                         gameActive = true;
                     }
-
+    
                 } catch (error) {
                     console.error(error);
                     statusElement.textContent = "Erreur : l'IA ne répond pas.";
                     gameActive = true;
                 }
             }
-
+    
             async function handleCellClick(event) {
                 if (!gameActive) return;
-
+    
                 const cell = event.target;
                 const row = cell.dataset.row;
                 const col = cell.dataset.col;
-
+    
                 if (boardState[row][col] !== ' ') return;
-
+    
                 updateBoard(row, col, PLAYER_X);
-
+    
                 let etatJeu = checkGameState(boardState);
                 if (etatJeu) {
                     endGame(etatJeu);
                     return;
                 }
-
+    
                 statusElement.textContent = "L'IA réfléchit...";
                 gameActive = false;
-
+    
                 setTimeout(aiTurn, 400);
             }
-
+    
             function updateBoard(row, col, player) {
                 boardState[row][col] = player;
                 const cell = document.querySelector(
@@ -199,14 +218,14 @@
                 cell.textContent = player;
                 cell.classList.add(player.toLowerCase());
             }
-
+    
             function checkGameState(board) {
                 if (isWinner(board, PLAYER_X)) return 'HUMAIN';
                 if (isWinner(board, PLAYER_O)) return 'IA';
                 if (isBoardFull(board)) return 'NUL';
                 return null;
             }
-
+    
             function isWinner(board, player) {
                 for (let i = 0; i < 3; i++) {
                     if (board[i][0] === player && board[i][1] === player && board[i][2] === player) return true;
@@ -218,23 +237,30 @@
                 if (board[0][2] === player && board[1][1] === player && board[2][0] === player) return true;
                 return false;
             }
-
+    
             function isBoardFull(board) {
                 return board.flat().every(c => c !== ' ');
             }
-
+    
             function endGame(status) {
                 gameActive = false;
-                if (status === 'HUMAIN') statusElement.textContent = "Incroyable, vous avez gagné !";
-                else if (status === 'IA') statusElement.textContent = "L'IA a gagné !";
-                else statusElement.textContent = "Match nul !";
+                if (status === 'HUMAIN') {
+                    statusElement.textContent = "Incroyable, vous avez gagné !";
+                    humanScore++;
+                } else if (status === 'IA') {
+                    statusElement.textContent = "L'IA a gagné !";
+                    aiScore++;
+                } else {
+                    statusElement.textContent = "Match nul !";
+                    drawScore++;
+                }
+                updateScoreboard();
             }
-
+    
             resetButton.addEventListener('click', initializeGame);
             starterSelect.addEventListener('change', initializeGame);
-
+    
+            updateScoreboard();
             initializeGame();
         });
     </script>
-</body>
-</html>
