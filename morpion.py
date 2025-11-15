@@ -1,29 +1,16 @@
 import math
 from flask import Flask, request, jsonify
-from flask_cors import CORS # Pour autoriser les requêtes depuis votre HTML local
+from flask_cors import CORS
 
-# --- Initialisation de Flask ---
 app = Flask(__name__)
-CORS(app) # Active CORS pour toutes les routes
+CORS(app)
 
-# --- Logique de jeu (copiée de votre code) ---
-SCORES = {
-    'IA': 10,
-    'HUMAIN': -10,
-    'NUL': 0
-}
 HUMAIN = 'X'
 IA = 'O'
-
-# --- Fonctions utilitaires (inchangées) ---
+SCORES = {'IA': 10, 'HUMAIN': -10, 'NUL': 0}
 
 def get_cases_vides(board):
-    cases = []
-    for i in range(3):
-        for j in range(3):
-            if board[i][j] == ' ':
-                cases.append((i, j))
-    return cases
+    return [(i,j) for i in range(3) for j in range(3) if board[i][j] == ' ']
 
 def est_victoire(board, joueur):
     for i in range(3):
@@ -51,79 +38,62 @@ def verifier_etat_jeu(board):
     else:
         return None
 
-# --- L'IA (Algorithme Minimax, inchangé) ---
-
-def minimax(board, profondeur, est_tour_maximiseur):
+def minimax(board, profondeur, est_max):
     etat = verifier_etat_jeu(board)
     if etat is not None:
         return SCORES[etat]
-
-    if est_tour_maximiseur:
-        meilleur_score = -math.inf
-        for (ligne, col) in get_cases_vides(board):
-            board[ligne][col] = IA
-            score = minimax(board, profondeur + 1, False)
-            board[ligne][col] = ' '
-            meilleur_score = max(score, meilleur_score)
-        return meilleur_score
+    if est_max:
+        meilleur = -math.inf
+        for i,j in get_cases_vides(board):
+            board[i][j] = IA
+            score = minimax(board, profondeur+1, False)
+            board[i][j] = ' '
+            meilleur = max(score, meilleur)
+        return meilleur
     else:
-        meilleur_score = math.inf
-        for (ligne, col) in get_cases_vides(board):
-            board[ligne][col] = HUMAIN
-            score = minimax(board, profondeur + 1, True)
-            board[ligne][col] = ' '
-            meilleur_score = min(score, meilleur_score)
-        return meilleur_score
+        meilleur = math.inf
+        for i,j in get_cases_vides(board):
+            board[i][j] = HUMAIN
+            score = minimax(board, profondeur+1, True)
+            board[i][j] = ' '
+            meilleur = min(score, meilleur)
+        return meilleur
 
 def trouver_meilleur_coup(board):
     meilleur_score = -math.inf
     meilleur_coup = None
-
-    for (ligne, col) in get_cases_vides(board):
-        board[ligne][col] = IA
-        score_du_coup = minimax(board, 0, False)
-        board[ligne][col] = ' '
-        
-        if score_du_coup > meilleur_score:
-            meilleur_score = score_du_coup
-            meilleur_coup = (ligne, col)
-            
+    for i,j in get_cases_vides(board):
+        board[i][j] = IA
+        score = minimax(board, 0, False)
+        board[i][j] = ' '
+        if score > meilleur_score:
+            meilleur_score = score
+            meilleur_coup = (i,j)
     return meilleur_coup
-
-# --- La route API (le "modèle" que le site web va appeler) ---
 
 @app.route('/api/play', methods=['POST'])
 def api_play():
     try:
-        # 1. Recevoir le plateau de jeu actuel depuis le site web
         data = request.json
         board = data.get('board')
-
         if not board:
             return jsonify({'error': 'Plateau non fourni'}), 400
 
-        # 2. Vérifier si le jeu n'est pas déjà fini (au cas où)
-        etat_initial = verifier_etat_jeu(board)
-        if etat_initial is not None:
-            return jsonify({'status': etat_initial, 'move': None})
+        etat = verifier_etat_jeu(board)
+        if etat:
+            return jsonify({'status': etat, 'move': None})
 
-        # 3. Demander à l'IA de trouver le meilleur coup
-        (ligne, col) = trouver_meilleur_coup(board)
-        
-        # 4. Appliquer le coup de l'IA
-        board[ligne][col] = IA
-        
-        # 5. Vérifier le nouvel état du jeu
-        etat_final = verifier_etat_jeu(board)
-        
-        # 6. Renvoyer le coup de l'IA et l'état du jeu au site web
-        return jsonify({
-            'status': etat_final, # 'IA', 'NUL', ou None
-            'move': (ligne, col)
-        })
-
+        coup = trouver_meilleur_coup(board)
+        if coup:
+            i,j = coup
+            board[i][j] = IA
+            etat = verifier_etat_jeu(board)
+            return jsonify({'status': etat, 'move': [i,j]})
+        else:
+            return jsonify({'status': 'NUL', 'move': None})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 # --- Lancement du serveur Flask ---
 if __name__ == "__main__":
